@@ -1,4 +1,4 @@
-
+############################
 # Simulating introduce of SNPs, Run several times
 
 # 0.1% sequence nucleotide divergence, 3 replicates
@@ -24,5 +24,10 @@ seq 1 3 | parallel -j 10 perl Simulation-V1.pl IntroSNP SorMacSN1693 sgl3 15 Eac
 
 # 20% sequence nucleotide divergence, 3 replicates
 seq 1 3 | parallel -j 10 perl Simulation-V1.pl IntroSNP SorMacSN1693 sgl3 20 Each{} SimuOutDir
+
+############################
+# Stats of simulated SNPs
+perl Simulation-V1.pl Gather SorMacSN1693 sgl3 '0.1;0.5;1;2;5;10;15' 1-3 SimuOutDir
+
 
 
