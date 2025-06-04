@@ -1,0 +1,341 @@
+---
+title: "Simulation-Draw"
+output: html_document
+date: "2025-05-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+```{r}
+library(scales)
+library(tidyverse)
+library(rtracklayer)
+
+library(ggplot2)
+library(cowplot)
+library(ggsci)
+library(ggpubr)
+#library(ggpmisc)
+library(patchwork)
+library(cowplot)
+library(dplyr)
+library(tidyr)
+```
+
+
+```{r}
+getwd()
+# change to your path
+```
+
+
+### 2025-05-27
+```{r}
+dataset <- read.table("sgl3.count.txt", sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+
+dataset$RIPRateSet <- as.numeric(as.character(dataset$RIPRateSet))
+dataset$RIPRatioSet <- as.numeric(as.character(dataset$RIPRatioSet))
+
+#dataset$RIPindex.TP <- as.numeric(as.character(dataset$RIPindex.TP))
+#dataset$RIPindex.FP <- as.numeric(as.character(dataset$RIPindex.FP))
+dataset$RIPindex.TPR <- as.numeric(as.character(dataset$RIPindex.TPR))
+dataset$RIPindex.FPR <- as.numeric(as.character(dataset$RIPindex.FPR))
+#dataset$RIPindex.Recall <- as.numeric(as.character(dataset$RIPindex.Recall))
+#dataset$RIPindex.Accuracy <- as.numeric(as.character(dataset$RIPindex.Accuracy))
+#dataset$RIPindex.Precision <- as.numeric(as.character(dataset$RIPindex.Precision))
+
+
+#dataset$TiTv10.TP <- as.numeric(as.character(dataset$TiTv10.TP))
+#dataset$TiTv10.FP <- as.numeric(as.character(dataset$TiTv10.FP))
+dataset$TiTv10.TPR <- as.numeric(as.character(dataset$TiTv10.TPR))
+dataset$TiTv10.FPR <- as.numeric(as.character(dataset$TiTv10.FPR))
+#dataset$TiTv10.Recall <- as.numeric(as.character(dataset$TiTv10.Recall))
+#dataset$TiTv10.Accuracy <- as.numeric(as.character(dataset$TiTv10.Accuracy))
+#dataset$TiTv10.Precision <- as.numeric(as.character(dataset$TiTv10.Precision))
+
+#str(dataset)
+```
+
+
+```{r}
+#
+dataset2 <- dataset %>%
+  filter(round == 100, RIPRateSet %in% c(0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.15, 0.2))
+	
+# Filter the dataset and remove columns starting with 'TiTv[357]'
+
+#dataset1 <- dataset %>%
+#  filter(round == 100 & RIPRateSet %in% c(0.1, 0.5, 1, 2, 5, 10))
+
+#dataset$RIPRateSet <- as.character(dataset$RIPRateSet)
+
+#dataset1 <- dataset %>%
+#  filter(round == 100, RIPRateSet %in% c("0.1", "0.5", "1", "2", "5", "10"))
+
+dataset2
+#####################################################
+# 转化数据为长格式
+
+datasetTPR <- dataset2 %>%
+  pivot_longer(cols = c(RIPindex.TPR, TiTv10.TPR), 
+               names_to = "Type", 
+               values_to = "Percentage") %>%
+  mutate(Type = factor(Type, levels = c("TiTv10.TPR", "RIPindex.TPR")))  # 设置因子水平顺序
+
+datasetFPR <- dataset2 %>%
+  pivot_longer(cols = c(RIPindex.FPR, TiTv10.FPR), 
+               names_to = "Type", 
+               values_to = "Percentage") %>%
+  mutate(Type = factor(Type, levels = c("TiTv10.TPR", "RIPindex.TPR")))  # 设置因子水平顺序
+
+
+# 创建小提琴图
+figTPR <- ggplot(datasetTPR, aes(x = factor(RIPRateSet*100), y = Percentage * 100, fill = Type)) +
+#  geom_violin(trim = FALSE, size = 0.2) +
+  geom_boxplot(outlier.shape = NA, size = 0.1) +  # 使用箱线图
+  geom_jitter(aes(color = Type), 
+               position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.75), 
+               size = 0.2, 
+               alpha = 0.2, 
+               show.legend = FALSE) +  # 添加抖动点并去掉图例
+  scale_fill_npg() +
+#scale_fill_manual(values = c("RIPindex.TPR" = "#4DBBD5FF", "TiTv10.TPR" = "#E64B35FF"), 
+#                    labels = c("RIPindex.TPR" = "RIP index", "TiTv10.TPR" = "Ti/Tv ≥ 10")) +
+	labs(title = "",
+       x = "Percentage of clustered RIP SNPs",
+       y = "Recovered percentage") +
+  facet_grid(~ SeqClass) +
+  scale_x_discrete(labels = function(x) paste0(x, "%")) +  # 在 x 轴上添加百分号
+  scale_y_continuous(labels = percent_format(scale = 1)) +  # 添加百分号
+  theme_test() +
+  guides(fill = guide_legend(title = ""))
+
+
+
+#figcomb = figTPR
+
+#ggsave(figTPR, file="RFigure2.Recovered.100percent-RIP-SNPs.png", width=8, height=3)
+ggsave(figTPR, file="RFigure2.Recovered.100percent-RIP-SNPs.pdf", width=8, height=3)
+
+```
+
+
+```{r}
+
+dataset3 <- dataset %>% filter(RIPRateSet == 0.01, RIPRatioSet %in% c(0, 0.2, 0.4, 0.6, 0.8, 1))
+
+dataset3
+
+##################################################
+# 转化数据为长格式
+
+dataset3TPR <- dataset3 %>%
+  pivot_longer(cols = c(RIPindex.TPR, TiTv10.TPR), 
+               names_to = "Type", 
+               values_to = "Percentage") %>%
+  mutate(Type = factor(Type, levels = c("TiTv10.TPR", "RIPindex.TPR")))  # 设置因子水平顺序
+
+dataset3FPR <- dataset3 %>%
+  pivot_longer(cols = c(RIPindex.FPR, TiTv10.FPR), 
+               names_to = "Type", 
+               values_to = "Percentage") %>%
+  mutate(Type = factor(Type, levels = c("TiTv10.FPR", "RIPindex.FPR")))  # 设置因子水平顺序
+
+
+# 创建小提琴图
+figTPR <- ggplot(dataset3TPR, aes(x = factor(RIPRatioSet*100), y = Percentage * 100, fill = Type)) +
+#  geom_violin(trim = FALSE, size = 0.2) +
+  geom_boxplot(outlier.shape = NA, size = 0.2) +  # 使用箱线图
+  geom_jitter(aes(color = Type), 
+               position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.75), 
+               size = 0.5, 
+               alpha = 0.5, 
+               show.legend = FALSE) +  # 添加抖动点并去掉图例
+  scale_fill_npg() +
+#scale_fill_manual(values = c("RIPindex.TPR" = "#4DBBD5FF", "TiTv10.TPR" = "#E64B35FF"), 
+#                    labels = c("RIPindex.TPR" = "RIP index", "TiTv10.TPR" = "Ti/Tv ≥ 10")) +
+	labs(title = "a",
+       x = "Percentage of clustered RIP SNPs",
+       y = "Recovered percentage") +
+  facet_grid(~ SeqClass) +
+  scale_x_discrete(labels = function(x) paste0(x, "%")) +  # 在 x 轴上添加百分号
+  scale_y_continuous(labels = percent_format(scale = 1)) +  # 添加百分号
+  theme_test() +
+  guides(fill = guide_legend(title = ""))
+
+
+# 创建小提琴图
+figFPR <- ggplot(dataset3FPR, aes(x = factor(RIPRatioSet*100), y = Percentage * 100, fill = Type)) +
+#  geom_violin(trim = FALSE, size = 0.2) +
+  geom_boxplot(outlier.shape = NA, size = 0.2) +  # 使用箱线图
+  geom_jitter(aes(color = Type), 
+               position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.75), 
+               size = 0.5, 
+               alpha = 0.5, 
+               show.legend = FALSE) +  # 添加抖动点并去掉图例
+  scale_fill_npg() +
+#scale_fill_manual(values = c("RIPindex.TPR" = "#4DBBD5FF", "TiTv10.TPR" = "#E64B35FF"), 
+#                    labels = c("RIPindex.TPR" = "RIP index", "TiTv10.TPR" = "Ti/Tv ≥ 10")) +
+	labs(title = "b",
+       x = "Percentage of clustered RIP SNPs",
+       y = "False positive rate") +
+  facet_grid(~ SeqClass) +
+  scale_x_discrete(labels = function(x) paste0(x, "%")) +  # 在 x 轴上添加百分号
+  scale_y_continuous(limits = c(0, 10), labels = percent_format(scale = 1)) +  # 添加百分号
+  theme_test() +
+  guides(fill = guide_legend(title = ""))
+
+figcomb = figTPR / figFPR 
+
+#ggsave(figcomb, file="RFigure3.Recovered.1percent-divergence.png", width=7, height=5)
+ggsave(figcomb, file="RFigure3.Recovered.1percent-divergence.pdf", width=7, height=5)
+
+```
+
+
+
+
+
+```{r}
+
+dataset3 <- dataset %>% filter(RIPRateSet == 0.1, RIPRatioSet %in% c(0, 0.2, 0.4, 0.6, 0.8, 1))
+
+dataset3
+
+##################################################
+# 转化数据为长格式
+
+dataset3TPR <- dataset3 %>%
+  pivot_longer(cols = c(RIPindex.TPR, TiTv10.TPR), 
+               names_to = "Type", 
+               values_to = "Percentage")
+
+dataset3FPR <- dataset3 %>%
+  pivot_longer(cols = c(RIPindex.FPR, TiTv10.FPR), 
+               names_to = "Type", 
+               values_to = "Percentage")
+
+
+# 创建小提琴图
+figTPR <- ggplot(dataset3TPR, aes(x = factor(RIPRatioSet*100), y = Percentage * 100, fill = Type)) +
+#  geom_violin(trim = FALSE, size = 0.2) +
+  geom_boxplot(outlier.shape = NA, size = 0.2) +  # 使用箱线图
+  geom_jitter(aes(color = Type), 
+               position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.75), 
+               size = 0.5, 
+               alpha = 0.5, 
+               show.legend = FALSE) +  # 添加抖动点并去掉图例
+  scale_fill_npg() +
+  labs(title = "a",
+       x = "Percentage of clustered RIP SNPs",
+       y = "Recovered percentage") +
+  facet_grid(~ SeqClass) +
+  ylim(0, 100) +
+  scale_x_discrete(labels = function(x) paste0(x, "%")) +  # 在 x 轴上添加百分号
+  scale_y_continuous(labels = percent_format(scale = 1)) +  # 添加百分号
+  theme_test() +
+  guides(fill = guide_legend(title = ""))
+
+
+# 创建小提琴图
+figFPR <- ggplot(dataset3FPR, aes(x = factor(RIPRatioSet*100), y = Percentage * 100, fill = Type)) +
+#  geom_violin(trim = FALSE, size = 0.2) +
+  geom_boxplot(outlier.shape = NA, size = 0.2) +  # 使用箱线图
+  geom_jitter(aes(color = Type), 
+               position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.75), 
+               size = 0.5, 
+               alpha = 0.5, 
+               show.legend = FALSE) +  # 添加抖动点并去掉图例
+  scale_fill_npg() +
+  labs(title = "b",
+       x = "Percentage of clustered RIP SNPs",
+       y = "False positive rate") +
+  facet_grid(~ SeqClass) +
+  scale_x_discrete(labels = function(x) paste0(x, "%")) +  # 在 x 轴上添加百分号
+  scale_y_continuous(limits = c(0, 5), labels = percent_format(scale = 1)) +  # 添加百分号
+  theme_test() +
+  guides(fill = guide_legend(title = ""))
+
+figcomb = figTPR / figFPR 
+
+ggsave(figcomb, file="RFigure3.Recovered.10percent-divergence.png", width=10, height=6)
+ggsave(figcomb, file="RFigure3.Recovered.10percent-divergence.pdf", width=10, height=6)
+
+
+```
+
+
+
+
+
+
+```{r}
+# Confusion Matrix of Ti/Tv Cut-off in Detection of RIPed Genes
+dataset4pre <- read.table("sgl3.TiTvParameters.txt", sep = "\t", header = TRUE)
+
+dataset4 <- dataset4pre %>% filter(grepl("Gene", SeqClass) & !grepl("TN", Classification) )
+
+figa <- ggplot(dataset4, aes(x = factor(TiTvSet), y = GeneNum, fill = Classification)) +
+  geom_bar(stat = "identity") +
+  labs(title = "a",
+       x = "Ti/Tv index cut-off",
+       y = "No. of Genes") +
+  facet_wrap( ~ RIPpct) +
+  scale_fill_npg() +  # 使用 npg 配色方案
+#scale_fill_manual(values = c("TP30" = pal_npg("nrc")(1), "deRIP" = pal_npg("nrc")(2)),
+#                  labels = c("TP30" = "TP>=30", "deRIP" = "deRIP")) +
+	theme_test() +
+  theme(panel.border = element_rect(color = "black", fill = NA, size = 1) )
+
+figa
+
+
+dataset4 <- dataset4pre %>% filter(grepl("Repeat", SeqClass) & !grepl("TN", Classification) )
+
+figb <- ggplot(dataset4, aes(x = factor(TiTvSet), y = GeneNum, fill = Classification)) +
+  geom_bar(stat = "identity") +
+  labs(title = "b",
+       x = "Ti/Tv index cut-off",
+       y = "No. of Repeats") +
+  facet_wrap( ~ RIPpct) +
+  scale_fill_npg() +  # 使用 npg 配色方案
+#scale_fill_manual(values = c("TP30" = pal_npg("nrc")(1), "deRIP" = pal_npg("nrc")(2)),
+#                  labels = c("TP30" = "TP>=30", "deRIP" = "deRIP")) +
+	theme_test() +
+  theme(panel.border = element_rect(color = "black", fill = NA, size = 1) )
+
+figb
+
+figcomb = figa / figb
+
+ggsave(figcomb, file="RFigure4.TiTvParameters.png", width=6, height=5)
+ggsave(figcomb, file="RFigure4.TiTvParameters.pdf", width=6, height=5)
+```
+
+
+
+
