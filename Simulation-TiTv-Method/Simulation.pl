@@ -1,8 +1,14 @@
 use strict;
+
+# Author:		TAN, Huawei
+# Affiliation:	GATTACA Lab, Nanjing University
+# Email:		tanhuawei1991@163.com
+
 use Data::Dump qw(dump);
 use List::Util 'shuffle';
 use IO::Handle;
 use POSIX qw(strftime);
+
 
 # 2025-04-02
 # 2025-04-05 Update
@@ -11,21 +17,27 @@ use POSIX qw(strftime);
 # 2025-05-01 Update to SimuW4
 # 2025-05-04 Update  GeneScan DupReg RIPed deRIP
 # 2025-05-12 Update and Integrate statistics
-# 2025-05-13 SimuW6-step1
-# 2025-05-20 SimuW7-step1
+# 2025-05-13 Update to SimuW6$rea
+# 2025-05-20 Update to SimuW7
+# 2025-05-28 Update to SimuW8
+# 2025-06-03 Simulation-V1.pl
 
-my ($RunPart, $SpeciesSet, $prefix, $ratemag, $repiSet, $folderout) = @ARGV;
-# $RunPart	IntroSNP  Stat	GeneScan
-my %RoundHash;
-#my @round = qw/30/;
+# If you feel hard to read this Perl script, you can just follow the Workflow.sh to run
+
+my ($RunPart, $SpeciesSet, $prefix, $pct, $repiSet, $folderout) = @ARGV;
+# $RunPart	IntroSNP  Stat
+# $repi is the counter of replicates. Also set 'Each2' means only set $repi = 2; Set '5' means set $repi = 2, 3, 4, 5 in Batch mode
+
+# Here we set the parameters of RIP-type SNPs ratio.
+# For example, 20 means 20% RIP-type SNPs, with 80% other type SNPs.
 my @round = qw/0 20 40 60 80 100/;
-#my @round = qw/0 10 20 30 40 50 60 70 80 90 100/;
-#my @round = 0 .. 100;
-if ( $ratemag == 0 ) { @round = qw/0/; }
 
+# when $pct == 0, we only calculate the RIP index, but not introduce SNPs
+if ( $pct == 0 ) { @round = qw/0/; } 
+
+# When we run a large number of replicated, set $BatchNum = 5 or other numbers could accelerate the speed.
 my $BatchNum = 5;
 my @repi;
-
 if ( $repiSet=~/^Each(\d+)$/ ) {
 	@repi = ($1);
 } elsif ( $repiSet=~/^(\d+)$/ ) {
@@ -37,54 +49,43 @@ if ( $repiSet=~/^Each(\d+)$/ ) {
 
 
 # Set the parameters
-my $RIPRateSet      = $ratemag / 10 ** 2;
+my $RIPRateSet      = $pct / 10 ** 2;
 my $clusterlen		= 1000;
 #my $RIPmodelfile 	= 'SimuW1.RIPmutNondupModel.ini';
 my $RIPmodelfile 	= 'Simu.RIPMod.Tetrad4Spores.nondup.ini';
 my $othermodelfile 	= 'SimuW2.MutDirt.g6722.ini';
+
+# Nature 2003 paper parameters
 my %BinucProb = qw/Ca 0.3 tG 0.3 Ct 0.05 aG 0.05 Cg 0.01 cG 0.01 Cc 0.009 gG 0.009/;
-if ( $ratemag >= 15 ) { %BinucProb = qw/Ca 0.3 tG 0.3 Ct 0.1 aG 0.1 Cg 0.1 cG 0.1 Cc 0.05 gG 0.05/; }
-elsif ( $ratemag >= 20 ) { %BinucProb = qw/Ca 0.3 tG 0.3 Ct 0.15 aG 0.15 Cg 0.15 cG 0.15 Cc 0.1 gG 0.1/; }
+if ( $pct >= 15 ) { %BinucProb = qw/Ca 0.3 tG 0.3 Ct 0.1 aG 0.1 Cg 0.1 cG 0.1 Cc 0.05 gG 0.05/; }
+elsif ( $pct >= 20 ) { %BinucProb = qw/Ca 0.3 tG 0.3 Ct 0.15 aG 0.15 Cg 0.15 cG 0.15 Cc 0.1 gG 0.1/; }
 
 my ($InitFasFile, $InitGeneFasFile, $cdscoofile, $geneusefile, $repeatcoofile, $repeatusefile, $ChrHead, $UseTotalLen);
 
-if      ( $SpeciesSet eq 'FGSC2489' ) { 
+
+# This simulation is work on Sordaria macrospora, a RIP-lack fungi, and we also provide other choices
+if     ( $SpeciesSet eq 'SorMacSN1693' ) { 
+	$InitFasFile		= 'SorMacSN1693.genome.fa.gz';
+	$cdscoofile 		= 'SorMacSN1693.cds.coo';
+	$repeatcoofile		= 'SorMacSN1693.dupblock2.coo';
+	$geneusefile		= 'SorMacSN1693-ortho.gene.coo';
+	$repeatusefile		= 'SorMacSN1693.dupblock2.coo';
+	$ChrHead			= 'CP083';
+} elsif   ( $SpeciesSet eq 'FGSC2489' ) { 
 	$InitFasFile		= 'thwNC12v42-contig20Mt.fas';
-#	$InitGeneFasFile	= 'thwNC12v42-cds+intron.fas';
 	$cdscoofile			= 'thwNC12v42-cds-coo.txt';
 	$geneusefile 		= 'thwNC12v42-cds+intron.nuclear.coo';
 	$repeatcoofile		= 'FGSC2489.dupblock2.coo';
 	$repeatusefile		= 'FGSC2489.dupblock2.coo';
 	$ChrHead			= 'Supercontig';
-#	$UseTotalLen		= 41102378;
-#	$UseTotalLen		= 41102378 - 5917207;
 } elsif ( $SpeciesSet eq 'FGSC2225' ) { 
 	$InitFasFile		= 'ref2225v03.nuclear.fa';
-#	$InitGeneFasFile	= 'ref2225v03.cds.fa';
 	$cdscoofile 		= 'ref2225v03-cds-coo.txt';
 	$geneusefile		= 'ref2225v03.gene.nuclear.coo';
 	$repeatcoofile		= 'FGSC2225.dupblock2.coo';
 	$repeatusefile		= 'FGSC2225.dupblock2.coo';
 	$ChrHead			= 'Chr';
-#	$UseTotalLen		= 41244053;
-#	$UseTotalLen		= 41244053 - 5788707;
-} elsif ( $SpeciesSet eq 'SorMacSN1693' ) { 
-	$InitFasFile		= 'SorMacSN1693.genome.fa';
-#	$InitGeneFasFile	= 'SorMacSN1693-ortho.gene.fa';
-	$cdscoofile 		= 'SorMacSN1693.cds.coo';
-	$repeatcoofile		= 'SorMacSN1693.dupblock2.coo';
-	$geneusefile		= 'SorMacSN1693-ortho.gene.coo';
-	$repeatusefile		= 'SorMacSN1693.dupblock2.coo';
-#	$geneusefile		= 'RIPindexMode7.Gene.deRIP.txt';
-#	$repeatusefile		= 'RIPindexMode7.Repeat.deRIP.txt';
-#	$repeatcoofile		= 'SorMacSN1693.Repeat2-dupblock2.coo';
-#	$repeatusefile		= 'SorMacSN1693.Repeat2-dupblock2.coo';
-	$ChrHead			= 'CP083';
-#	$UseTotalLen		= 39444728;
-#	$UseTotalLen		= 39444728 - 2649434;
 } else { die "That species not found\n"; }
-
-
 
 
 if ( $RunPart eq 'GeneScan' ) {
@@ -95,7 +96,7 @@ if ( $RunPart eq 'GeneScan' ) {
 	open STDERR, ">$folderout/0-$SpeciesSet.region.txt";
 
 	print STDOUT join ("\t" => qw/Project	Species	GeneID	GeneLength	GeneNumCA	GeneNumTG	GeneNumCATG	GeneCATGdivergence	RIPindex	RegLen	RegCATGcontain	RegCATGNeedMinGene	RegCATGdivergence	RegCATGNeedMinGeneRatio/), "\n";
-	my $repi = $ratemag;
+	my $repi = $pct;
 #	print STDERR join ("\t" => $repi, ''), "\n";
 	my (%RIPindexThisHash, %MutCountThisHash);
 	for my $gene ( sort keys %GeneFas ) {
@@ -122,14 +123,12 @@ if ( $RunPart eq 'GeneScan' ) {
 }
 
 
-if ( $RunPart =~/IntroSNP/ ) {
-	# Initiate the RIP SNP Model
+elsif ( $RunPart =~/IntroSNP/ ) {
 
 
-################################################################################ Initiate START
-
+################################################################################ Eliminate SNPs that cause pre-stop of peptides
 	my %NewStopHash;
-	open FILE, "<SimuW5-selection.txt" or die;
+	open FILE, "gzip -dc SorMacSN1693-prestop.txt.gz | " or die;
 	while (<FILE>) { s/\r//g; chomp;
 		my ( $gene, $iref, $chr, $site, $refbase, $altbase, $dnacodonref, $dnacodonalt, $genetic_code_ref, $genetic_code_alt ) = split /\t/;
 		if ( $genetic_code_ref ne '*' and $genetic_code_alt eq '*' ) {
@@ -137,6 +136,8 @@ if ( $RunPart =~/IntroSNP/ ) {
 		}
 	}
 	close FILE;
+
+################################################################################ Initiate the RIP SNP Model
 
 	my $current_time = strftime "%Y-%m-%d %H:%M:%S", localtime; print STDERR "START $current_time\n";
 
@@ -152,17 +153,6 @@ if ( $RunPart =~/IntroSNP/ ) {
 	my ($genecoohashRF, $cdscoohashRF, $cdssitehashRF, $site2genehashRF ) = &InitGeneCOOV8($UseAllHashRF, $cdscoofile, $repeatcoofile);
 	my $current_time = strftime "%Y-%m-%d %H:%M:%S", localtime; print STDERR "InitGeneCOOV8 Init done at $current_time\n";
 
-	#my ($genecoohashRF, $cdscoohashRF, $cdssitehashRF, $site2genehashRF ) = &InitGeneCOOV8($cdscoofile, $GeneUseHashRF);
-	#	my $chrsiteArrhashRF = &InitOtherMutV8($cdssitehashRF, $GenomeEachRF);
-	# $chrsiteclass3ArrRF is the array of gene chr sites for shuffle
-	# $chrsiteclass3HashRF is the hash of gene chr sites for get seq
-
-	# $GeneUseHashRF, $cdscoohashRF, $site2genehashRF is only used in the Stat RunPart
-	# $genecoohashRF, $cdssitehashRF are useless
-
-	#dump $GenomeEachRF;
-	#dump $chrsiteclass3ArrRF;
-
 	my @UseGeneArr   = sort keys %$UseGeneHashRF;
 	my @UseRepeatArr = sort keys %$UseRepeatHashRF;
 
@@ -170,6 +160,7 @@ if ( $RunPart =~/IntroSNP/ ) {
 	print STDERR "Total ", scalar @UseGeneArr, " genes. ", scalar @UseRepeatArr, " Repeats. Init done $current_time\n";
 ################################################################################ Initiate END
 
+#### Set min SNPs number in each cluster, only useful in cls InSNP method
 	my $MinSNPInOneCluster = 3;
 	my %modetetradhash;
 	my @LenSNPArrMode;
@@ -203,15 +194,15 @@ if ( $RunPart =~/IntroSNP/ ) {
 	for my $repi ( @repi ) {
 
 	# Output files
-	open SITELIST1S, " | gzip > $folderout/$prefix/${ratemag}pct.$repi.sitelist.txt.gz";	# short information
+	open SITELIST1S, " | gzip > $folderout/$prefix/${pct}pct.$repi.sitelist.txt.gz";	# short information
 	print SITELIST1S join ("\t" => qw/repi round Process ClusterID SNPNumFin chr site refbase altbase dirt selection/), "\n";
 
-	if ( $repi == 1 ) {
-	open SITELISTIN, " | gzip > $folderout/$prefix/${ratemag}pct.$repi.InClusterInfo.txt.gz" if $prefix=~/cluster/ or $prefix=~/^cls/;	# introduced clustered SNPs information
-	open SITEINSWAY, " | gzip > $folderout/$prefix/${ratemag}pct.$repi.InClusterSway.txt.gz" if $prefix=~/^cls[23]/;	# introduced clustered SNPs information
+		if ( $repi == 1 ) {
+			open SITELISTIN, " | gzip > $folderout/$prefix/${pct}pct.$repi.InClusterInfo.txt.gz" if $prefix=~/cluster/ or $prefix=~/^cls/;	# introduced clustered SNPs information
+			open SITEINSWAY, " | gzip > $folderout/$prefix/${pct}pct.$repi.InClusterSway.txt.gz" if $prefix=~/^cls[23]/;	# introduced clustered SNPs information
 
-	print SITELISTIN join ("\t" => qw/repi round Process ClusterID chrsiteNum chrsite/), "\n";
-	}
+			print SITELISTIN join ("\t" => qw/repi round Process ClusterID chrsiteNum chrsite/), "\n";
+		}
 
 	for my $round ( @round ) {
 
@@ -239,123 +230,11 @@ if ( $RunPart =~/IntroSNP/ ) {
 		my $Process    = 'InRIP';
 		my $ClusterID  = 0;
 
-		######################## Introduce novel Mutations due to substitution rate
+############################################## introduce clustered model
+		if ( $prefix=~/^cls4/ ) {
 
-		if ( $prefix=~/^cls1/ ) {
-			while ( $RIPNumFin < $RIPNumSet ) {
-				$RIPshufi ++;
-				my $chrsite = $chrsiteclass3shuf[$RIPshufi-1];
-				my ($chr, $site) = split /\s+/, $chrsite;
-
-				my (@chrsitenew);
-
-				my ( $clusterRIPnum, $RIPNewFlankLen, $sitenewARR ) = split /\s+/, $LenSNPArr[$RIPshufi-1];
-	#			$RIPNewFlankLen = int($RIPNewFlankLen * 1.2);
-	#			$RIPNewFlankLen = int( log($RIPNewFlankLen+100) * 300);
-				$RIPNewFlankLen = int( sqrt($RIPNewFlankLen+100) * 100 );
-
-				for my $sitex ( $site - $RIPNewFlankLen .. $site + $RIPNewFlankLen ) {
-					push @chrsitenew, $chrsiteclass3HashRF->{$chr}{$sitex} if $chrsiteclass3HashRF->{$chr}{$sitex} =~/$ChrHead/;
-				}
-
-				@chrsitenew = @chrsitenew[0 .. $clusterRIPnum-1];
-				if ( scalar @chrsitenew >= $MinSNPInOneCluster ) { $ClusterID ++; } else { next; }
-				print SITELISTIN join ("\t" => $repi, $round, $Process, $ClusterID, scalar @chrsitenew, @chrsitenew), "\n";
-
-				for my $chrsitenew ( @chrsitenew ) {
-					$RIPNumFin ++;
-					my ($chrnew, $sitenew) = split /\s+/, $chrsitenew;
-		#			delete $chrsiteclass3HashRF->{$chr}{$sitenew};
-					# store the mutated sites
-					my $refbase = $GenomeEachRF->{$chr}[$site];
-					my $altbase;	if ( $refbase eq 'C' ) { $altbase = 'T'; } elsif ( $refbase eq 'G' ) { $altbase = 'A'; } else { die join ("\t" => $chrsite, $refbase, $altbase), "\n"; }
-					$UsedChrSiteHash{$chr}{$sitenew} = $altbase;
-
-					### simple information
-					my $selection = $NewStopHash{$chr}{$sitenew}{$altbase} || 'normal';
-					my $dirt = "$refbase>$altbase";
-					my $dup = $HashClassRF->{$chr}{$sitenew};
-
-					my $print1 = join ("\t" => $repi, $round, $Process, $ClusterID, $RIPNumFin, $chr, $sitenew, $refbase, $altbase, $dirt, $dup, $selection);
-		#			push @{ $RoundHash{$round} }, $print1;
-					print SITELIST1S "$print1\n";
-				}
-			}
-		}
-
-		######################## Introduce novel Mutations due to substitution rate
-
-		elsif ( $prefix=~/^cls[23]/ ) {
-
-			my $swaySet = 100;
-			my @sway = (0);
-			for my $i (1 .. $swaySet) { push @sway, -$i, $i; }
-
-			while ( $RIPNumFin < $RIPNumSet ) {
-				$RIPshufi ++;
-				my $chrsite = $chrsiteclass3shuf[$RIPshufi-1];
-				my ($chr, $site) = split /\s+/, $chrsite;
-				my ( $clusterRIPnum, $RIPNewFlankLen, $sitenewARR ) = split /\s+/, $LenSNPArr[$RIPshufi-1];
-
-				my $dinuc = (shuffle qw/CA TG/)[0];
-				my $base3;
-				my %chrsitenew;
-
-				# Simulate SNPs accroding to the site Model
-				for my $sitecoo ( split /\;/, $sitenewARR ) {
-					my $flag = 'NotFound';
-					my $sitenew;
-					my $swaynew;
-					while ( $flag eq 'NotFound' ) {
-						for my $sway ( @sway ) {
-						#	print STDOUT join ("\t" => $mode, $sitecoo, 'flag', $flag, $sway), "\n";
-						
-							$swaynew = $sway;
-							$sitenew = $site + $sway + $sitecoo;
-							$base3 = $GenomeEachRF->{$chr}[$sitenew-1].$GenomeEachRF->{$chr}[$sitenew].$GenomeEachRF->{$chr}[$sitenew+1];
-
-							if ( $base3=~/$dinuc/ and length($base3) == 3 and $chrsiteclass3HashRF->{$chr}{$sitenew} =~/$ChrHead/ and not $UsedChrSiteHash{$chr}{$sitenew} ) {
-								$chrsitenew{"$chr $sitenew"} ++;
-								$flag = 'meet';
-							}
-							if ( $flag eq 'meet' or abs($swaynew) >= $swaySet ) { last; }
-						}
-						if ( $flag eq 'meet' or abs($swaynew) >= $swaySet ) { last; }
-					}
-					print SITEINSWAY join ("\t" => $repi, $round, $dinuc, $base3, $sitenewARR, $sitecoo, $swaynew, $sitenew, $flag), "\n" if $repi == 1;
-				}
-
-				my @chrsitenew = sort keys %chrsitenew;
-				if ( scalar @chrsitenew >= $MinSNPInOneCluster ) { $ClusterID ++; } else { next; }
-				print SITELISTIN join ("\t" => $repi, $round, $Process, $ClusterID, scalar @chrsitenew, @chrsitenew), "\n" if $repi == 1;
-
-				for my $chrsitenew ( @chrsitenew ) {
-					$RIPNumFin ++;
-					my ($chrnew, $sitenew) = split /\s+/, $chrsitenew;
-		#			delete $chrsiteclass3HashRF->{$chr}{$sitenew};
-					# store the mutated sites
-					my $refbase = $GenomeEachRF->{$chr}[$site];
-					my $altbase;	if ( $refbase eq 'C' ) { $altbase = 'T'; } elsif ( $refbase eq 'G' ) { $altbase = 'A'; } else { die join ("\t" => $chrsite, $refbase, $altbase), "\n"; }
-					$UsedChrSiteHash{$chr}{$sitenew} = $altbase;
-
-					### simple information
-					my $selection = $NewStopHash{$chr}{$sitenew}{$altbase} || 'normal';
-					my $dirt = "$refbase>$altbase";
-					my $dup = $HashClassRF->{$chr}{$sitenew};
-
-					my $print1 = join ("\t" => $repi, $round, $Process, $ClusterID, $RIPNumFin, $chr, $sitenew, $refbase, $altbase, $dirt, $dup, $selection);
-		#			push @{ $RoundHash{$round} }, $print1;
-					print SITELIST1S "$print1\n";
-				}
-			}
-		}
-
-		######################## Introduce novel Mutations due to substitution rate
-
-		elsif ( $prefix=~/^cls4/ ) {
-
-		my $RIPDupNumSet    = int( $RIPRateSet * $UseDupLen   *    $RIPRatioSet  + 0.5 );
-		my $RIPDupNumFin    = 0;
+			my $RIPDupNumSet    = int( $RIPRateSet * $UseDupLen   *    $RIPRatioSet  + 0.5 );
+			my $RIPDupNumFin    = 0;
 
 			my $swaySet = 100;
 			my @sway = (0);
@@ -417,7 +296,6 @@ if ( $RunPart =~/IntroSNP/ ) {
 					if ( $dup eq 'dup' ) { $RIPDupNumFin ++; }
 
 					my $print1 = join ("\t" => $repi, $round, $Process, $ClusterID, $RIPNumFin, $chr, $sitenew, $refbase, $altbase, $dirt, $dup, $selection);
-		#			push @{ $RoundHash{$round} }, $print1;
 					print SITELIST1S "$print1\n";
 				}
 			} # End Dup CA/TG shuf in Dup
@@ -482,7 +360,6 @@ if ( $RunPart =~/IntroSNP/ ) {
 					my $dup = $HashClassRF->{$chr}{$sitenew};
 
 					my $print1 = join ("\t" => $repi, $round, $Process, $ClusterID, $RIPNumFin, $chr, $sitenew, $refbase, $altbase, $dirt, $dup, $selection);
-		#			push @{ $RoundHash{$round} }, $print1;
 					print SITELIST1S "$print1\n";
 				}
 			} # End Dup CA/TG shuf in Nondup
@@ -491,7 +368,7 @@ if ( $RunPart =~/IntroSNP/ ) {
 	############################################################################################################## First Introduce RIP SNPs randomly on genomic CpA
 
 
-		######################## Introduce novel Mutations due to substitution rate
+		######################## Introduce novel Mutations only due to substitution rate
 
 		elsif ( $prefix=~/single/ or $prefix=~/^sgl1/ ) {
 			while ( $RIPNumFin < $RIPNumSet ) {
@@ -516,12 +393,13 @@ if ( $RunPart =~/IntroSNP/ ) {
 					my $dup = $HashClassRF->{$chr}{$sitenew};
 
 					my $print1 = join ("\t" => $repi, $round, $Process, $ClusterID, $RIPNumFin, $chr, $sitenew, $refbase, $altbase, $dirt, $dup, $selection);
-		#			push @{ $RoundHash{$round} }, $print1;
 					print SITELIST1S "$print1\n";
 			}
 		}
 
-		######################## 
+		######################## Introduce novel Mutations due to substitution rate on specific di-nucleotide context. This is used in the paper
+                               # The genome sequence of the filamentous fungus Neurospora crassa, Nature, 2003
+                               # According to the probabilities in the previous report: (CpA = 0.3, CpT = 0.05, CpG = 0.01, CpC = 0.009) (Galagan et al., 2003), we incorporated these probabilities during each round of simulation involving 1% divergence for RIP (CpA = 0.059843, CpT = 0.009969, CpG = 0.001989, CpC = 0.00179), every cytosine-containing dinucleotide on one strand (selected with equal probabilities) was mutated.
 
 		elsif ( $prefix=~/^sgl3/ ) {
 			my $BinucMuttedSiteAllNum = 0;
@@ -563,7 +441,6 @@ if ( $RunPart =~/IntroSNP/ ) {
 						my $dup = $HashClassRF->{$chr}{$sitenew};
 
 						my $print1 = join ("\t" => $repi, $round, $Process, "$Binuc-$ClusterID", $RIPNumFin, $chr, $sitenew, $refbase, $altbase, $dirt, $dup, $selection);
-				#		push @{ $RoundHash{$round} }, $print1;
 						print SITELIST1S "$print1\n";
 
 					}
@@ -571,66 +448,6 @@ if ( $RunPart =~/IntroSNP/ ) {
 				}
 			}
 		}
-
-		######################## 
-=pod
-		elsif ( $prefix=~/^sgl4/ ) {
-	#		my $refreshNumSet = int( $ratemag - 1) / 5);	# 0>0
-			my $tiny = $ratemag;
-
-		while ( $tiny > 0 ) {
-			if ( $refresh > 5 ) { ($GenomeEachRF, $BinucArrHashRF, $BinucCountHashRF) = &GenomeEachV8refresh($GenomeFasRF, $HashClassRF, $GenomeEachRF, \%UsedChrSiteHashRF); }
-			$tiny -= 5;
-
-			my $BinucMuttedSiteAllNum = 0;
-			for my $dup ( qw/dup nondup/) {
-				for my $Binuc ( sort keys %BinucProb ) {
-					my $BinucSiteNum = $BinucCountHashRF->{"$Binuc $dup"};
-					my $BinucMuttedSiteNum = $BinucSiteNum * $BinucProb{$Binuc};
-					$BinucMuttedSiteAllNum += $BinucMuttedSiteNum;
-					print STDERR join ("\t" => $repi, $round, $Binuc, $dup, $BinucSiteNum, $BinucMuttedSiteNum ), "\n";
-				}
-			}
-			my $FoldSet = $RIPRateSet * $UseTotalLen * $RIPRatioSet / $BinucMuttedSiteAllNum;
-			print STDERR join ("\t" => $repi, $round, 'Total', $BinucMuttedSiteAllNum, $UseTotalLen, $BinucMuttedSiteAllNum / $UseTotalLen, $FoldSet ), "\n";
-			for my $dup ( qw/dup nondup/) {
-				for my $Binuc ( sort keys %BinucProb ) {
-					my ($refbase, $altbase);
-					if    ( $Binuc=~/^C[atgc]$/ ) { ($refbase, $altbase) = qw/C T/; }
-					elsif ( $Binuc=~/^[atgc]G$/ ) { ($refbase, $altbase) = qw/G A/; }
-					my $dirt = "$refbase>$altbase";
-					$RIPshufi = 0;
-					my $BinucSiteNum = $BinucCountHashRF->{"$Binuc $dup"};
-					my $BinucMuttedSiteNumSet = int($BinucSiteNum * $BinucProb{$Binuc} * $FoldSet + 0.5);
-					print STDERR join ("\t" => $repi, $round, $Binuc, $dup, $BinucSiteNum, $BinucMuttedSiteNumSet ), "\n";
-
-					$ClusterID = 0;
-					my $RF = $BinucArrHashRF->{"$Binuc $dup"};
-					for my $chrsite ( (shuffle @$RF)[0 .. $BinucMuttedSiteNumSet-1] ) {
-						my ($chr, $site) = split /\s+/, $chrsite;
-						my $sitenew = $site;
-						$RIPNumFin ++;
-				#		delete $chrsiteclass3HashRF->{$chr}{$sitenew};
-						# store the mutated sites
-						$UsedChrSiteHash{$chr}{$sitenew} = $altbase;
-						$ClusterID ++;
-				#		print SITELISTIN join ("\t" => $repi, $round, $Process, $ClusterID, 1, $chrsite), "\n";
-
-							### simple information
-						my $selection = $NewStopHash{$chr}{$sitenew}{$altbase} || 'normal';
-						my $dup = $HashClassRF->{$chr}{$sitenew};
-
-						my $print1 = join ("\t" => $repi, $round, $Process, "$Binuc-$ClusterID", $RIPNumFin, $chr, $sitenew, $refbase, $altbase, $dirt, $dup, $selection);
-				#		push @{ $RoundHash{$round} }, $print1;
-						print SITELIST1S "$print1\n";
-
-					}
-
-				}
-			}
-		}
-		}
-=cut
 	############################################################################################################## Secondly Introduce other SNPs
 
 			$Process   = 'InOther';
@@ -678,7 +495,6 @@ if ( $RunPart =~/IntroSNP/ ) {
 					my $dup = $HashClassRF->{$chr}{$sitenew};
 
 					my $print1 = join ("\t" => $repi, $round, $Process, $ClusterID, $OthNumFin, $chr, $sitenew, $refbase, $altbase, $dirt, $dup, $selection);
-		#			push @{ $RoundHash{$round} }, $print1;
 					print SITELIST1S "$print1\n";
 
 				}
@@ -696,8 +512,6 @@ if ( $RunPart =~/Stat/ ) {
 
 	my ($UseGeneHashRF, $UseRepeatHashRF, $UseAllHashRF) = &GeneUseInitV8($geneusefile, $repeatusefile);
 	my $HashClassRF;
-#	my $HashClassRF   = &HashClassdupV8($repeatcoofile);
-#	my $current_time = strftime "%Y-%m-%d %H:%M:%S", localtime; print STDERR "HashClassRF Init done at $current_time\n";
 
 	# Initiate the Genome from the fasta file
 	my %GenomeFas = &InitFasV0($InitFasFile, '', 'Hash');
@@ -706,16 +520,9 @@ if ( $RunPart =~/Stat/ ) {
 	my ($genecoohashRF, $cdscoohashRF, $cdssitehashRF, $site2genehashRF ) = &InitGeneCOOV8($UseAllHashRF, $cdscoofile, $repeatcoofile);
 	my $current_time = strftime "%Y-%m-%d %H:%M:%S", localtime; print STDERR "InitGeneCOOV8 Init done at $current_time\n";
 
-	#my ($genecoohashRF, $cdscoohashRF, $cdssitehashRF, $site2genehashRF ) = &InitGeneCOOV8($cdscoofile, $GeneUseHashRF);
-	#	my $chrsiteArrhashRF = &InitOtherMutV8($cdssitehashRF, $GenomeEachRF);
 	# $chrsiteclass3ArrRF is the array of gene chr sites for shuffle
 	# $chrsiteclass3HashRF is the hash of gene chr sites for get seq
 
-	# $GeneUseHashRF, $cdscoohashRF, $site2genehashRF is only used in the Stat RunPart
-	# $genecoohashRF, $cdssitehashRF are useless
-
-	#dump $GenomeEachRF;
-	#dump $chrsiteclass3ArrRF;
 
 	my @UseGeneArr   = sort keys %$UseGeneHashRF;
 	my @UseRepeatArr = sort keys %$UseRepeatHashRF;
@@ -729,7 +536,7 @@ if ( $RunPart =~/Stat/ ) {
 		my (%MuttedGeneHash, %RIPedGeneHash, %RIPIntroSNPHash, %CTtypehash, %UsedChrSiteRdHash, %StatSNPnumHash);
 		my $line  = 0;
 
-		open SITELIST1S, "gzip -dc $folderout/$prefix/${ratemag}pct.$repi.sitelist.txt.gz | ";	# short information
+		open SITELIST1S, "gzip -dc $folderout/$prefix/${pct}pct.$repi.sitelist.txt.gz | ";	# short information
 		while (<SITELIST1S>) { s/\r//g; chomp;
 				my ($repi, $round, $Process, $ClusterID, $RIPNumFin, $chr, $sitenew, $refbase, $altbase, $dirt, $dup, $selection) = split /\t/;
 #				my ($repiSet, $round, $gid, $countall, $DUP, $fulllen, $sitenewARR, $dirt, $countdirt3ARR, $combnewARR, $flag, $sitecoo, $swaynew, $chr, $sitenew, $base3, $altbase, $dup, $dirt3, $ref5base, $alt5base, $geneARR ) = split /\t/;
@@ -752,8 +559,6 @@ if ( $RunPart =~/Stat/ ) {
 				# Distinct the Ti Tv
 				my $CTtype = &CTtypeDetect($dirt);
 				$CTtypehash{$round}{$chr}{$sitenew} = $CTtype;
-
-#			push @{ $RoundHash{$round} }, $print1;
 		}
 		close SITELIST1S;
 
@@ -761,9 +566,9 @@ if ( $RunPart =~/Stat/ ) {
 
 ################################################################################ Summary of Genes
 		for my $SeqClass ( qw/Gene Repeat/ ) {
-			open OUTROUNDSTAT, " | gzip > $folderout/$prefix-stat/${ratemag}pct-$SeqClass-NoprestopSite.$repi.roundstat.txt.gz" or die;
-			open OUTROUNDSEQ,  " | gzip > $folderout/$prefix-stat/${ratemag}pct-$SeqClass-NoprestopSite.$repi.roundseq.txt.gz" or die;
-			open OUTCOUNT,     "        > $folderout/$prefix-stat/${ratemag}pct-$SeqClass-NoprestopSite.$repi.count.txt" or die;
+			open OUTROUNDSTAT, " | gzip > $folderout/$prefix-stat/${pct}pct-$SeqClass-NoprestopSite.$repi.roundstat.txt.gz" or die;
+			open OUTROUNDSEQ,  " | gzip > $folderout/$prefix-stat/${pct}pct-$SeqClass-NoprestopSite.$repi.roundseq.txt.gz" or die;
+			open OUTCOUNT,     "        > $folderout/$prefix-stat/${pct}pct-$SeqClass-NoprestopSite.$repi.count.txt" or die;
 
 			my $UseThisHashRF; if ( $SeqClass eq 'Gene' ) { $UseThisHashRF = $UseGeneHashRF; } elsif ( $SeqClass eq 'Repeat' ) { $UseThisHashRF = $UseRepeatHashRF; } else { die; }
 				my @TiTvSet = qw/10 3 5 7 15/;
@@ -839,15 +644,6 @@ if ( $RunPart =~/Stat/ ) {
 					}
 				}
 
-				my %PreType;
-				open FILE, "<SimuW6-outdir/species/RIPindexMode0.roundstat.txt" or die;
-				while (<FILE>) { s/\r//g; chomp;
-					if ( /SorMac/ ) {  } else { next; }
-					my ($tsample, $tSeqClass, $tid, $ttype) = split /\t/;
-					$PreType{$tid} = $ttype;
-				}
-				close FILE;
-
 				for my $gene ( sort keys %$UseThisHashRF ) {
 					$UseGeneNum ++;
 					my $RIPintro;
@@ -862,7 +658,6 @@ if ( $RunPart =~/Stat/ ) {
 					} else {
 						$RIPintro = 'N';
 					}
-			#		if ( $PreType{$gene} eq 'RIPed' ) { $RIPintro = 'Y'; }
 
 					my $Type;
 						my $IndexMethod = 'RIPindex';
@@ -921,9 +716,9 @@ if ( $RunPart =~/Stat/ ) {
 
 
 elsif ( $RunPart eq 'Gather' ) {
-#	perl SimuW7-step1.pl Gather SorMacSN1693 cls3 '0.1;0.2;0.5;1;2;5;10' 1-1000 SimuW7-outdir
+#	perl Simulation-V1.pl Gather SorMacSN1693 sgl3 '0.1;0.2;0.5;1;2;5;10' 1-100 SimuOutDir
 
-	my @RateSet = split /\;/, $ratemag;
+	my @RateSet = split /\;/, $pct;
 	my @tmp     = split /\-/, $repiSet;
 	my @RepiSet = $tmp[0] .. $tmp[1];
 
@@ -1003,7 +798,7 @@ elsif ( $RunPart eq 'Gather' ) {
 }
 
 
-
+# Classification of SNPs into transition / transversion
 sub MutSum {
 # my ($titv, $SNPnum, $RIPtype) = &MutSum($MutCountGene{'ti'}, $MutCountGene{'tv'} );
 	my ($TiNum, $TvNum) = @_;
@@ -1113,18 +908,6 @@ sub RIPindexV8RIPper {
 	if ( $numAC+$numGT > 0 ) { $Substrate  = sprintf "%0.3f", ($numCA+$numTG)/($numAC+$numGT); } else { $Substrate = sprintf "%0.3f", ($numCA+$numTG); }
 	if ( $numTA > 0 )        { $CATGfold   = sprintf "%0.3f", ($numCA+$numTG)/$numTA; }          else { $CATGfold  = sprintf "%0.3f", ($numCA+$numTG); }
 	my $Composite = sprintf "%0.3f", ($Product - $Substrate);
-
-#	if    ($Product > 2)                                     { $typereg = 'RIPed'; }
-#	elsif ($Substrate < 0.7 and $numAC + $numGT >= $minACGT)   { $typereg = 'RIPed'; }
-#	my $TANeed = 2 * $numAT - $numTA;
-#	my $CANeed = $numCA + $numTG - 0.7 * ( $numAC + $numGT );
-
-#	if    ($Product >  1.15 )                                { $typereg = 'RIPed'; }
-#	elsif ($Substrate <= 0.75 and $numAC + $numGT >= $minACGT) { $typereg = 'RIPed'; }
-#	elsif ($Composite >  0 )                                   { $typereg = 'RIPed'; }
-
-	
-#	if    ($Product >  1.15 and $Substrate <= 0.75 and $Composite >  0 ) { $typereg = 'RIPed'; }
 
 	my $TANeed = 1.15 * $numAT - $numTA;
 	my $CANeed = $numCA + $numTG - 0.75 * ( $numAC + $numGT );
@@ -1241,47 +1024,10 @@ sub GenomeEachV8 {
 				elsif ( $thisbase eq 'G' ) { push @{ $BinucArrHash{"$prebase$thisbase $dup"} }, "$chr $site"; $BinucCountHash{"$prebase$thisbase $dup"} ++; $chrsiteclass3Hash{$chr}{$site} = "$chr $site"; }
 			}
 		}
-	#	dump %GenomeEach;
-#		for my $refbase (keys %chrsiteArrhash) {
-#		    $chrsiteArrhash{$refbase} = [shuffle @{$chrsiteArrhash{$refbase}}];
-#		}
 	} else { die "sub GenomeEachV8 Fault\n"; }
-
-	#my %BinucProb = qw/Ca 0.3 tG 0.3 Ct 0.05 aG 0.05 Cg 0.01 cG 0.01 Cc 0.009 gG 0.009/;
 
 	return (\%GenomeEach, $HashClassRF, \%BinucArrHash, \%BinucCountHash, \%chrsiteclass3Hash, \%chrsiteArrhash, $UseTotalLen);
 }
-
-=pod
-# Initiate each site, including CpA and consider cluster
-sub GenomeEachV8refresh {
-#	my ($GenomeEach2RF, $BinucArrHashRF, $BinucCountHashRF) = &GenomeEachV8refresh($GenomeFasRF, $HashClassRF, $GenomeEachRF, \%UsedChrSiteHashRF);
-	my ($GenomeFasRF, $HashClassRF, $GenomeEachRF, $UsedChrSiteHashRF) = @_;
-	my (%GenomeEach2, %BinucArrHash, %BinucCountHash);
-
-	my %GenomeEach2 = %$GenomeEachRF;
-
-		for my $chr ( sort keys %$GenomeFasRF ) {
-			my $chrlen = length( $GenomeFasRF->{$chr});
-			for my $site ( 1 .. $chrlen ) {
-				if ( $UsedChrSiteHash{$chr}{$site} ) { $GenomeEach2{$chr}[$site] = $UsedChrSiteHash->{$chr}{$site} ; }
-			}
-		}
-
-		for my $chr ( sort keys %$GenomeFasRF ) {
-			my $chrlen = length( $GenomeFasRF->{$chr});
-			for my $site ( 1 .. $chrlen ) {
-				my ($prebase, $thisbase, $nextbase) = ( lc($GenomeEach2{$chr}[$site-1]), uc($GenomeEach2{$chr}[$site]), lc($GenomeEach2{$chr}[$site+1]) );
-
-				my $dup = $HashClassRF->{$chr}{$site};
-				if    ( $thisbase eq 'C' ) { push @{ $BinucArrHash{"$thisbase$nextbase $dup"} }, "$chr $site"; $BinucCountHash{"$thisbase$nextbase $dup"} ++; $chrsiteclass3Hash{$chr}{$site} = "$chr $site"; }
-				elsif ( $thisbase eq 'G' ) { push @{ $BinucArrHash{"$prebase$thisbase $dup"} }, "$chr $site"; $BinucCountHash{"$prebase$thisbase $dup"} ++; $chrsiteclass3Hash{$chr}{$site} = "$chr $site"; }
-			}
-		}
-	return (\%GenomeEach2, \%BinucArrHash, \%BinucCountHash);
-}
-
-=cut
 
 # Initiate the gene coordinates
 sub InitGeneCOOV8 {
@@ -1321,7 +1067,6 @@ sub InitGeneCOOV8 {
 		}
 		close COO;
 	}
-
 	return (\%genecoohash, \%cdscoohash, \%cdssitehash, \%site2genehash);
 }
 
