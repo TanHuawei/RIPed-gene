@@ -1,5 +1,6 @@
 ############################
 # Simulating introduce of SNPs, Run several times
+cd ~/Simulation-TiTv-Method/
 
 # 0.1% sequence nucleotide divergence, 3 replicates
 seq 1 3 | parallel -j 10 perl Simulation-V1.pl IntroSNP SorMacSN1693 sgl3 0.1 Each{} SimuOutDir
@@ -29,5 +30,11 @@ seq 1 3 | parallel -j 10 perl Simulation-V1.pl IntroSNP SorMacSN1693 sgl3 20 Eac
 # Stats of simulated SNPs
 perl Simulation-V1.pl Gather SorMacSN1693 sgl3 '0.1;0.5;1;2;5;10;15' 1-3 SimuOutDir
 
+############################
+# Draw figures
+cd R-draw/
+mv ../Simulation-TiTv-Method/sgl3.count.txt ../Simulation-TiTv-Method/sgl3.TiTvParameters.txt .
 
+R
 
+# Run the Simulation-Draw.Rmd to Draw figures
