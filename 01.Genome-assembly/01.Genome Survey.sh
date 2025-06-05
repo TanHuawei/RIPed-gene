@@ -62,7 +62,7 @@ fi
 done
 
 
-### GenomeScope2  设置 -p 1 为单倍体
+### GenomeScope2  set -p 1 indicate haplotype
 for samp in `ls *.k19.histo | sed 's/.k19.histo//'`
 do
 if [ ! -e genomescope2-k$kmer/$samp/summary.txt ]; then
@@ -70,7 +70,7 @@ if [ ! -e genomescope2-k$kmer/$samp/summary.txt ]; then
 fi
 done
 
-### GenomeScope2  设置 -p 1 为单倍体
+### GenomeScope2  set -p 1 indicate haplotype
 for samp in `ls *.k21.histo | sed 's/.k21.histo//'`
 do
 if [ ! -e genomescope2-k$kmer/$samp/summary.txt ]; then
