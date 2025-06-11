@@ -1,7 +1,8 @@
 
-Example for Simulation, please find the file "Simulation-TiTv-Method/Workflow.sh"
+Example for Simulation, please find the file "Simulation-TiTv-Method/Workflow.sh".
 
 
+The genome assembly and gene annotation have been archived in the file "Genome/FGSC2225-Genome.tar.gz".
 
 
 
